@@ -2,7 +2,6 @@ package com.web.service.addmix_store.controllers;
 
 import java.util.List;
 
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,7 +11,6 @@ import com.web.service.addmix_store.models.User;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*") // Enable for React dev
 public class UserController {
 
     private UserRepository userRepository;
