@@ -1,6 +1,10 @@
 package com.web.service.addmix_store.services;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+
+import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.web.service.addmix_store.models.User;
@@ -48,7 +52,31 @@ public class UserService {
 
     public User save(User user){
         return userRepository.save(user);
-    } 
+    }
 
+    public Optional<User> findByMobile(String mobile){
+        return userRepository.findByMobileNumber(mobile);
+    }
+
+    public Map<String, Object> getUserByEmailOrMobile(String identifier) throws BadRequestException{
+        
+        boolean userLoggedInByEmail= identifier.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+        User user;
+
+        // Check if matches email regex, search by email; else search by mobile
+        if (userLoggedInByEmail) {
+            user = userRepository.findByEmail(identifier)
+                .orElseThrow(() -> new BadRequestException("Invalid email"));
+        } else {
+            user = userRepository.findByMobileNumber(identifier)
+                .orElseThrow(() -> new BadRequestException("Invalid mobile number"));
+        }
+
+        Map<String, Object> map= new HashMap<>();
+        map.put("user", user);
+        map.put("userLoggedInByEmail", userLoggedInByEmail);
+
+        return map;
+    }
 
 }

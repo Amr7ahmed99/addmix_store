@@ -58,8 +58,8 @@ public class JwtUtil {
     }
 
     private String createToken(Map<String, Object> claims, User user) {
-        String subContent= String.format("{id=%d, email='%s', username='%s'}", 
-            user.getId(), user.getEmail(), user.getFirstName()+ " " +user.getLastName());
+        String subContent= String.format("{id=%d, username='%s', email='%s', mobile='%s'}",
+            user.getId(), user.getEmail(), user.getFirstName()+ " " +user.getLastName(), user.getMobileNumber());
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subContent)

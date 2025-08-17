@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class UserResponseDto {
     private Long id;
     private String email;
+    private String mobile;
     private String firstName;
     private String lastName;
     private boolean isActive;
@@ -21,5 +22,6 @@ public class UserResponseDto {
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();
         this.isActive= user.getIsActive();
+        this.mobile= user.getMobileNumber();
     }
 }
