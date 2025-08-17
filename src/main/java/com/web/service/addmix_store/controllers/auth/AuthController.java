@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +23,7 @@ import com.web.service.addmix_store.models.VerificationToken;
 import com.web.service.addmix_store.repository.VerificationTokenRepository;
 import com.web.service.addmix_store.services.EmailService;
 import com.web.service.addmix_store.services.UserService;
-import com.web.service.addmix_store.services.auth.CustomUserDetailsService;
+import com.web.service.addmix_store.services.WhatsAppService;
 import com.web.service.addmix_store.utils.Helpers;
 import com.web.service.addmix_store.utils.auth.JwtUtil;
 import io.micrometer.common.lang.Nullable;
@@ -44,191 +43,160 @@ public class AuthController {
 
     private final VerificationTokenRepository verificationTokenRepository;
 
-    private final CustomUserDetailsService userDetailsService;
-
     private final JwtUtil jwtUtil;
 
     private final PasswordEncoder passwordEncoder;
 
     private final EmailService emailService;
 
+    private final WhatsAppService whatsAppService;
+
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest, @Nullable @RequestParam boolean error) {
-        
-        try {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest, @Nullable @RequestParam boolean error)
+        throws Exception, BadRequestException, UsernameNotFoundException{
 
-            // to handle redirect link from google auth handler ("api/auth/login?error=true")
-            if(error){
-                throw new Exception("Google authentication failed");
-            }
-
-            // Authenticate user
-            // authenticationManager.authenticate(
-            //     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
-            // );
-
-            // Load user manually (without throwing disabled error)
-            User user = this.userService.findByEmail(loginRequest.getEmail())
-                .orElseThrow(() -> new UsernameNotFoundException("Invalid email or password"));
-
-
-            // Check password manually
-            if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-                throw new UsernameNotFoundException("Invalid email or password");
-            }
-
-            // If user is inActive, send verification code
-            if (!user.isEnabled()) {
-                // Generate random verification code and 
-                String verificationCode= Helpers.generateVerificationCode();
-
-                VerificationToken verificationToken = verificationTokenRepository.findByUser(user)
-                        .orElse(new VerificationToken());
-                verificationToken.setUser(user);
-                verificationToken.setVerificationCode(verificationCode);
-                verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
-                verificationTokenRepository.save(verificationToken);
-
-                UserResponseDto userResponse = new UserResponseDto(user);
-
-                // Send otp to registred email
-                emailService.sendVerificationEmail(user.getEmail(), verificationCode);
-
-                return ResponseEntity.ok(new LoginResponseDto("", userResponse));
-            }
-
-            // User is active → generate JWT
-            String token = jwtUtil.generateToken(user);
-            UserResponseDto userResponse = new UserResponseDto(user);
-            return ResponseEntity.ok(new LoginResponseDto(token, userResponse));
-
-        } catch (UsernameNotFoundException e) {
-            Map<String, String> err = new HashMap<>();
-            err.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(err);
-        } catch (Exception e) {
-            logger.error("Verification failed: {}", e.getMessage());
-            Map<String, String> err = new HashMap<>();
-            err.put("message",  "something went wrong, please try again letter");
-            return ResponseEntity.badRequest().body(err);
+        // to handle redirect link from google auth handler ("api/auth/login?error=true")
+        if(error){
+            throw new Exception("Google authentication failed");
         }
-    }
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest) {
-        try {
+        // Check if the user logged in by email or mobile
+        Map<String, Object> map= userService.getUserByEmailOrMobile(loginRequest.getEmailOrMobile());
+        User user= (User) map.get("user");
+        Boolean userLoggedInByEmail= (Boolean) map.get("userLoggedInByEmail");
 
-            // Check if email already exists
-            if (userService.existsByEmail(registerRequest.getEmail())) {
-                throw new BadRequestException("Email is already registered");
-            }
+        // Check password manually
+        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+            throw new UsernameNotFoundException("Invalid email or password");
+        }
 
-            // Check if mobile number already exists
-            if (userService.existsByMobileNumber(registerRequest.getMobileNumber())) {
-                throw new BadRequestException("Mobile number is already registered");
-            }
-
-            // Create new user
-            User user = new User();
-            user.setFirstName(registerRequest.getFirstName());
-            user.setLastName(registerRequest.getLastName());
-            user.setEmail(registerRequest.getEmail());
-            user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
-            user.setMobileNumber(registerRequest.getMobileNumber());
-            user.setIsActive(false);
-
-            // Save user to database
-            User savedUser = userService.save(user);
-
+        // If user is inActive, send verification code
+        if (!user.isEnabled()) {
             // Generate random verification code and 
             String verificationCode= Helpers.generateVerificationCode();
 
-            // Save user record to verification_token
-            VerificationToken verificationToken= new VerificationToken();
-            verificationToken.setUser(savedUser);
+            VerificationToken verificationToken = verificationTokenRepository.findByUser(user)
+                    .orElse(new VerificationToken());
+            verificationToken.setUser(user);
             verificationToken.setVerificationCode(verificationCode);
             verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
             verificationTokenRepository.save(verificationToken);
 
-            UserResponseDto userResponse = new UserResponseDto(savedUser);
+            UserResponseDto userResponse = new UserResponseDto(user);
 
-            // Send otp to registred email
-            emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
+            // Send otp to registred email or mobile
+            if(userLoggedInByEmail){
+                emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+            }else{
+                // whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
+            }
 
-            return ResponseEntity.ok(new RegisterResponseDto("Verification code sent to your email", userResponse));
-        }catch (BadRequestException e) {
-            Map<String, String> error = new HashMap<>();
-            logger.error("Registration failed: {}", e.getMessage());
-            error.put("message",  e.getMessage());
-            return ResponseEntity.badRequest().body(error);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            logger.error("Registration failed: {}", e.getMessage());
-            error.put("message",  "something went wrong, please try again letter");
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.ok(new LoginResponseDto("", userResponse));
         }
+
+        // User is active → generate JWT
+        String token = jwtUtil.generateToken(user);
+        UserResponseDto userResponse = new UserResponseDto(user);
+        return ResponseEntity.ok(new LoginResponseDto(token, userResponse));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest) throws Exception, BadRequestException{
+        // Check if email already exists
+        if (userService.existsByEmail(registerRequest.getEmail())) {
+            throw new BadRequestException("Email is already registered");
+        }
+
+        // Check if mobile number already exists
+        if (userService.existsByMobileNumber(registerRequest.getMobileNumber())) {
+            throw new BadRequestException("Mobile number is already registered");
+        }
+
+        // Create new user
+        User user = new User();
+        user.setFirstName(registerRequest.getFirstName());
+        user.setLastName(registerRequest.getLastName());
+        user.setEmail(registerRequest.getEmail());
+        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+        user.setMobileNumber(registerRequest.getMobileNumber());
+        user.setIsActive(false);
+
+        // Save user to database
+        User savedUser = userService.save(user);
+
+        // Generate random verification code and 
+        String verificationCode= Helpers.generateVerificationCode();
+
+        // Save user record to verification_token
+        VerificationToken verificationToken= new VerificationToken();
+        verificationToken.setUser(savedUser);
+        verificationToken.setVerificationCode(verificationCode);
+        verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
+        verificationTokenRepository.save(verificationToken);
+
+        UserResponseDto userResponse = new UserResponseDto(savedUser);
+
+        // Send otp to registred email
+        emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
+        // if(!registerRequest.getEmail().isEmpty()){
+        //     emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
+        // }else{
+        //     whatsAppService.sendOtp(savedUser.getMobileNumber(), verificationCode);
+        // }
+
+        return ResponseEntity.ok(new RegisterResponseDto("Verification code sent to your email", userResponse));
+        
     }
 
     @PostMapping("/register/verify")
-    public ResponseEntity<?> verifyEmail(@RequestBody VerifyRegisterRequestDto verifyRegisterRequestDto) {
+    public ResponseEntity<?> verifyEmail(@RequestBody VerifyRegisterRequestDto verifyRegisterRequestDto) throws Exception, BadRequestException{
 
-        try{
-            User user = userService.findByEmail(verifyRegisterRequestDto.getEmail())
-            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        // Check if the user logged in by email or mobile
+        Map<String, Object> map= userService.getUserByEmailOrMobile(verifyRegisterRequestDto.getEmailOrMobile());
+        User user= (User) map.get("user");
 
-            VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
+        VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
 
-            if(verificationToken == null){
-                return ResponseEntity.badRequest().body("Verification code not found for this email " + user.getEmail());
-            }
-
-            if (!verificationToken.getVerificationCode().equals(verifyRegisterRequestDto.getVerificationCode())) {
-                return ResponseEntity.badRequest().body("Invalid code");
-            }
-
-            if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
-                return ResponseEntity.badRequest().body("Code expired");
-            }
-
-            user.setIsActive(true);
-            verificationToken.setVerificationCode(null); // clear code
-            verificationToken.setExpiryDate(null);
-            verificationTokenRepository.save(verificationToken);
-
-            // Generate JWT token for the new user
-            String token = jwtUtil.generateToken(user);
-
-            // Create response
-            UserResponseDto userResponse = new UserResponseDto(user);
-            LoginResponseDto loginResponse = new LoginResponseDto(token, userResponse);
-            
-            return ResponseEntity.ok(loginResponse);
-
-        }catch (UsernameNotFoundException e) {
-            logger.error("Verification failed: {}", e.getMessage());
-            Map<String, String> error = new HashMap<>();
-            error.put("message",  e.getMessage());
-            return ResponseEntity.badRequest().body(error);
-        }catch (Exception e) {
-            logger.error("Verification failed: {}", e.getMessage());
-            Map<String, String> error = new HashMap<>();
-            error.put("message",  "something went wrong, please try again letter");
-            return ResponseEntity.badRequest().body(error);
+        if(verificationToken == null){
+            throw new BadRequestException("Verification code not found for this identifier " + verifyRegisterRequestDto.getEmailOrMobile());
         }
+
+        if (!verificationToken.getVerificationCode().equals(verifyRegisterRequestDto.getVerificationCode())) {
+            throw new BadCredentialsException("Invalid code");
+        }
+
+        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new BadCredentialsException("Code expired");
+        }
+
+        user.setIsActive(true);
+        verificationToken.setVerificationCode(null); // clear code
+        verificationToken.setExpiryDate(null);
+        verificationTokenRepository.save(verificationToken);
+
+        // Generate JWT token for the new user
+        String token = jwtUtil.generateToken(user);
+
+        // Create response
+        UserResponseDto userResponse = new UserResponseDto(user);
+        LoginResponseDto loginResponse = new LoginResponseDto(token, userResponse);
+        
+        return ResponseEntity.ok(loginResponse);
     }
 
     @GetMapping("/register/verify/resend")
-    public ResponseEntity<?> resendVerificationCode(@RequestParam String email){ 
-        User user = userService.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+    public ResponseEntity<?> resendVerificationCode(@RequestParam String identifier) throws Exception, BadRequestException{
 
-        VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
-        if(verificationToken == null){
-            return ResponseEntity.badRequest().body("Verification code not found for this email " + user.getEmail()+ " try to register again");
-        }
+        // Check if the user logged in by email or mobile
+        Map<String, Object> map= userService.getUserByEmailOrMobile(identifier);
+        User user= (User) map.get("user");
+        Boolean userLoggedInByEmail= (Boolean) map.get("userLoggedInByEmail");
 
+        VerificationToken verificationToken= verificationTokenRepository.findByUser(user)
+            .orElseThrow(()-> new BadRequestException("Verification code not found for this identifier " + identifier+ ", try to register again"));
+       
         Integer maxAttemptsPerTenMinutes= 3;
         long minutesBetween = Math.abs(ChronoUnit.MINUTES.between(verificationToken.getExpiryDate(), LocalDateTime.now()));
 
@@ -251,66 +219,64 @@ public class AuthController {
         verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
         verificationTokenRepository.save(verificationToken);
 
-        // Send otp to registred email
-        emailService.sendVerificationEmail(email, verificationCode);
+        // Send otp to registred email or mobile
+        if(userLoggedInByEmail){
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+        }else{
+            whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
+        }
 
         return ResponseEntity.ok("Verification code sent to your email");
         
     }
 
     @GetMapping("/forget-password/verify")
-    public ResponseEntity<?> sendOtpForHandlingNewPassword(@RequestParam String email) {
+    public ResponseEntity<?> sendOtpForHandlingNewPassword(@RequestParam String identifier) throws Exception, BadRequestException{
 
-        try{
-            User user = userService.findByEmail(email)
-            .orElseThrow(() -> new BadCredentialsException("User not found"));
+        // Check if the user logged in by email or mobile
+        Map<String, Object> map= userService.getUserByEmailOrMobile(identifier);
+        User user= (User) map.get("user");
+        Boolean userLoggedInByEmail= (Boolean) map.get("userLoggedInByEmail");
 
-            // Generate random verification code and 
-            String verificationCode= Helpers.generateVerificationCode();
+        // Generate random verification code and 
+        String verificationCode= Helpers.generateVerificationCode();
 
-            // Save user record to verification_token
-            VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
-            if(verificationToken == null){
-                verificationToken= new VerificationToken();
-                verificationToken.setUser(user);
-            }
-            verificationToken.setVerificationCode(verificationCode);
-            verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
-            verificationTokenRepository.save(verificationToken);
-
-            // Send otp to registred email
-            // emailService.sendVerificationEmail(email, verificationCode);
-
-            HashMap<String, String> res= new HashMap<>();
-            res.put("message", "Verification code sent to your email");
-            return ResponseEntity.ok(res);
-
-        }catch (BadCredentialsException e) {
-            Map<String, String> error = new HashMap<>();
-            logger.error("sendOtpForHandlingNewPassword: {}", e.getMessage());
-            error.put("message",  e.getMessage());
-            return ResponseEntity.badRequest().body(error);
-            
-        }catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            logger.error("sendOtpForHandlingNewPassword: {}", e.getMessage());
-            error.put("message",  "something went wrong, please try again letter");
-            return ResponseEntity.badRequest().body(error);
+        // Save user record to verification_token
+        VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
+        if(verificationToken == null){
+            verificationToken= new VerificationToken();
+            verificationToken.setUser(user);
         }
+        verificationToken.setVerificationCode(verificationCode);
+        verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(2));
+        verificationTokenRepository.save(verificationToken);
+
+        // Send otp to registred email or mobile
+        if(userLoggedInByEmail){
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+        }else{
+            whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
+        }
+
+        HashMap<String, String> res= new HashMap<>();
+        String resMsg= String.format("OTP code sent to your %s", userLoggedInByEmail? "email": "mobile number");
+        res.put("message", resMsg);
+        return ResponseEntity.ok(res);
     }
     
     @PostMapping("/forget-password/reset")
     public ResponseEntity<?> resetUserPassword(@RequestBody ResetPasswordRequestDto resetPasswordRequestDto) {
         try{
-            User user= userService.findByEmail(resetPasswordRequestDto.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("invalid email"));
+            // Check if the user logged in by email or mobile
+            Map<String, Object> map= userService.getUserByEmailOrMobile(resetPasswordRequestDto.getEmailOrMobile());
+            User user= (User) map.get("user");
 
             // Check if the password matches the confirm password
             if(!resetPasswordRequestDto.getPassword().equals(resetPasswordRequestDto.getConfirmPassword())){
                 throw new BadCredentialsException("invalid password");
             }
 
-            // Set the new password
+            // Set the new password[]
             String password= passwordEncoder.encode(resetPasswordRequestDto.getPassword());
             user.setPassword(password);
 
@@ -358,5 +324,4 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Token validation failed");
         }
     }
-
 }
