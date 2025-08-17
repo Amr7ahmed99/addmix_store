@@ -90,7 +90,7 @@ public class AuthController {
             if(userLoggedInByEmail){
                 emailService.sendVerificationEmail(user.getEmail(), verificationCode);
             }else{
-                // whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
+                whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
             }
 
             return ResponseEntity.ok(new LoginResponseDto("", userResponse));
@@ -140,6 +140,7 @@ public class AuthController {
 
         // Send otp to registred email
         emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
+        // TODO: send email if the user select send OTP to email, and to mobile if the user select sent to whatsApp
         // if(!registerRequest.getEmail().isEmpty()){
         //     emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
         // }else{
@@ -276,7 +277,7 @@ public class AuthController {
                 throw new BadCredentialsException("invalid password");
             }
 
-            // Set the new password[]
+            // Set the new password
             String password= passwordEncoder.encode(resetPasswordRequestDto.getPassword());
             user.setPassword(password);
 
