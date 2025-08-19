@@ -5,7 +5,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -18,19 +20,26 @@ import com.web.service.addmix_store.utils.auth.JwtUtil;
 import java.io.IOException;
 
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final JwtUtil jwtUtil;
 
-    
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
                                   FilterChain filterChain) throws ServletException, IOException, UsernameNotFoundException {
+
+        String path = request.getRequestURI();
+
+        // Skip JWT validation for refresh and login endpoints
+        if (path.startsWith("/api/auth/refresh") || path.startsWith("/api/auth/login")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         
         final String requestTokenHeader = request.getHeader("Authorization");
 
@@ -46,11 +55,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } catch (IllegalArgumentException e) {
                 logger.error("Unable to get JWT Token");
             } catch (ExpiredJwtException e) {
-                logger.error("JWT Token has expired");
+                logger.warn("JWT Token expired for path {}", path);
+
+                // For non-refresh requests, stop the filter chain return 401
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"Token has expired\"}");
+                return; 
             }
-            email = extractedEmail;
-        } else {
-            email = null;
+            email= extractedEmail;
+        }else{
+            email= null;
         }
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
