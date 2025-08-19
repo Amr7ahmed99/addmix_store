@@ -2,6 +2,7 @@ package com.web.service.addmix_store.handlers.auth;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
@@ -36,7 +37,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                     Authentication authentication) throws IOException {
+                                        Authentication authentication) throws IOException {
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
         // Extract user info from Google
@@ -48,19 +49,27 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Find or create user
         User user = userService.findOrCreateGoogleUser(email, name, firstName, lastName);
 
-        // Generate JWT token
-        String token = jwtUtil.generateToken(user);
+        // Generate access token
+        String accessToken = jwtUtil.generateAccessToken(user);
+        // Generate refresh token
+        String refreshToken = jwtUtil.generateRefreshToken(user);
 
-        // Redirect to frontend with token
         Map<String, Object> userData = new HashMap<>();
         userData.put("id", user.getId());
         userData.put("email", user.getEmail());
+        userData.put("mobile", user.getMobileNumber());
         userData.put("firstName", user.getFirstName());
         userData.put("lastName", user.getLastName());
         userData.put("provider", user.getProvider());
 
+        // Set refresh token as HttpOnly cookie
+        ResponseCookie refreshCookie = jwtUtil.buildCookieForRefreshToken(refreshToken);
+        
+        response.addHeader("Set-Cookie", refreshCookie.toString());
+
+        // Send access token & user info to frontend via redirect (safe in query param or fragment)
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
-                .queryParam("token", token)
+                .queryParam("token", accessToken)
                 .queryParam("user", userData)
                 .build()
                 .toUriString();

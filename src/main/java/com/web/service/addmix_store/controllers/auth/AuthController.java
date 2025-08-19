@@ -6,6 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -26,7 +29,10 @@ import com.web.service.addmix_store.services.UserService;
 import com.web.service.addmix_store.services.WhatsAppService;
 import com.web.service.addmix_store.utils.Helpers;
 import com.web.service.addmix_store.utils.auth.JwtUtil;
+
+import io.jsonwebtoken.ExpiredJwtException;
 import io.micrometer.common.lang.Nullable;
+
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -97,9 +103,18 @@ public class AuthController {
         }
 
         // User is active → generate JWT
-        String token = jwtUtil.generateToken(user);
+        String token = jwtUtil.generateAccessToken(user);
+
+        // User is active → generate refresh JWT
+        String refreshToken = jwtUtil.generateRefreshToken(user);
+
+        // Build cookie for refresh token
+        ResponseCookie cookie= jwtUtil.buildCookieForRefreshToken(refreshToken);
+
         UserResponseDto userResponse = new UserResponseDto(user);
-        return ResponseEntity.ok(new LoginResponseDto(token, userResponse));
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .body(new LoginResponseDto(token, userResponse));
     }
 
     @PostMapping("/register")
@@ -178,13 +193,21 @@ public class AuthController {
         verificationTokenRepository.save(verificationToken);
 
         // Generate JWT token for the new user
-        String token = jwtUtil.generateToken(user);
+        String token = jwtUtil.generateAccessToken(user);
+
+        // User is active → generate refresh JWT
+        String refreshToken = jwtUtil.generateRefreshToken(user);
+
+        // Build cookie for refresh token
+        ResponseCookie cookie= jwtUtil.buildCookieForRefreshToken(refreshToken);
 
         // Create response
         UserResponseDto userResponse = new UserResponseDto(user);
         LoginResponseDto loginResponse = new LoginResponseDto(token, userResponse);
         
-        return ResponseEntity.ok(loginResponse);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .body(loginResponse);
     }
 
     @GetMapping("/register/verify/resend")
@@ -281,8 +304,14 @@ public class AuthController {
             String password= passwordEncoder.encode(resetPasswordRequestDto.getPassword());
             user.setPassword(password);
 
-            // Generate JWT token for the new user
-            String token = jwtUtil.generateToken(user);
+            // Generate JWT token
+            String token = jwtUtil.generateAccessToken(user);
+
+            // Generate refresh JWT
+            String refreshToken = jwtUtil.generateRefreshToken(user);
+
+            // Build cookie for refresh token
+            ResponseCookie cookie= jwtUtil.buildCookieForRefreshToken(refreshToken);
 
             // Create response
             UserResponseDto userResponse = new UserResponseDto(user);
@@ -290,7 +319,10 @@ public class AuthController {
             
             userService.save(user);
 
-            return ResponseEntity.ok(loginResponse);
+            return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .body(loginResponse);
+
         }catch (BadCredentialsException e) {
             Map<String, String> error = new HashMap<>();
             logger.error("resetUserPassword: {}", e.getMessage());
@@ -305,24 +337,30 @@ public class AuthController {
         }
     }
 
-    @GetMapping("/validate")
-    public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String token) {
-        try {
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-            
-            String email = jwtUtil.extractUserEmail(token);
-            User user = userService.findByEmail(email).orElse(null);
-            
-            if (jwtUtil.validateToken(token, user)) {
-                UserResponseDto userResponse = new UserResponseDto(user);
-                return ResponseEntity.ok(userResponse);
-            } else {
-                return ResponseEntity.badRequest().body("Invalid token");
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Token validation failed");
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@CookieValue(required = false) String refreshToken) {
+        if (refreshToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token missing");
         }
+
+        try {
+            String email = jwtUtil.extractUserEmail(refreshToken);
+            User user = userService.findByEmail(email)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            if (jwtUtil.validateToken(refreshToken, user)) {
+                String newAccessToken = jwtUtil.generateAccessToken(user);
+
+                logger.info("new access token is created");
+                return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
+            }
+        } catch (ExpiredJwtException e) {
+            logger.error("Refresh token expired", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired, please login again");
+        }
+
+        logger.error("Invalid refresh token");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
     }
+
 }
