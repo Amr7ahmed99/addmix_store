@@ -42,6 +42,13 @@ public class SecurityConfig {
     @Value("${frontend.url}")
     private String frontendUrl;
 
+
+    @Value("${frontend.dashboard.url}")
+    private String frontendDashboardUrl;
+
+    @Value("${frontend.wep.app.url}")
+    private String frontendWebAppUrl;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -61,10 +68,21 @@ public class SecurityConfig {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers( "/api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
-                .requestMatchers("/auth/callback").permitAll()
-                // .requestMatchers(new AntPathRequestMatcher("/**", HttpMethod.OPTIONS.name())).permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(  "/api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
+                .requestMatchers("/api/collections").permitAll()
+                .requestMatchers("/api/products").permitAll()
+                .requestMatchers("/api/products/*").permitAll()
+                .requestMatchers("/api/analytics/**").permitAll()
+                .requestMatchers("/auth/callback").permitAll()
+                //TODO: /admin/* Should be removed from here
+                .requestMatchers("/api/collections/admin/**").permitAll()
+                .requestMatchers("/api/categories/admin/**").permitAll()
+                .requestMatchers("/api/subcategories/admin/**").permitAll()
+                .requestMatchers("/api/brands/admin/**").permitAll()
+                .requestMatchers("/api/products/admin/**").permitAll()
+                .requestMatchers("/api/admin/variants").permitAll()
+                .requestMatchers("/api/products/images/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
@@ -84,7 +102,11 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Allow specific origins (add your React app URL)
-        configuration.setAllowedOrigins(Arrays.asList(frontendUrl, "http://localhost:3000"));
+        configuration.setAllowedOrigins(Arrays.asList(
+            frontendUrl,
+            frontendDashboardUrl,
+            frontendWebAppUrl
+        ));
         
         // Allow all HTTP methods
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

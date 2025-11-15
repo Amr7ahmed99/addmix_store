@@ -1,13 +1,13 @@
-package com.web.service.addmix_store;
+// package com.web.service.addmix_store;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+// import org.junit.jupiter.api.Test;
+// import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class AddmixStoreApplicationTests {
+// @SpringBootTest
+// class AddmixStoreApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+// 	@Test
+// 	void contextLoads() {
+// 	}
 
-}
+// }

@@ -16,8 +16,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,6 +32,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Value("${frontend.url}")
     private String frontendUrl;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -67,10 +68,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         
         response.addHeader("Set-Cookie", refreshCookie.toString());
 
+        String userJson = objectMapper.writeValueAsString(userData);
+
         // Send access token & user info to frontend via redirect (safe in query param or fragment)
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
                 .queryParam("token", accessToken)
-                .queryParam("user", userData)
+                .queryParam("user", userJson)
                 .build()
                 .toUriString();
 

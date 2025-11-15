@@ -1,0 +1,19 @@
+package com.web.service.addmix_store.dtos;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class BrandDTOForCollection {
+    private Integer id;
+    private String name;
+    @JsonProperty("name_url")
+    private String nameUrl;
+    @JsonProperty("image_url")
+    private String imageUrl;
+}

@@ -1,0 +1,30 @@
+package com.web.service.addmix_store.dtos.auth;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@AllArgsConstructor
+@NoArgsConstructor
+@Data
+public class ResetPasswordRequestDto {
+
+    @NotBlank(message = "Email or mobile is required")
+    @Pattern(
+        regexp = "^([0-9]{10,15}|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})$",
+        message = "Please provide a valid email or mobile number"
+    )
+    private String emailOrMobile;
+    
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    private String password;
+    
+    @NotBlank(message = "Confirm password is required")
+    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    private String confirmPassword;
+
+}

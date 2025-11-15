@@ -10,17 +10,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-import com.web.service.addmix_store.dtos.LoginRequestDto;
-import com.web.service.addmix_store.dtos.LoginResponseDto;
-import com.web.service.addmix_store.dtos.RegisterRequestDto;
-import com.web.service.addmix_store.dtos.RegisterResponseDto;
-import com.web.service.addmix_store.dtos.ResetPasswordRequestDto;
+
 import com.web.service.addmix_store.dtos.UserResponseDto;
-import com.web.service.addmix_store.dtos.VerifyRegisterRequestDto;
+import com.web.service.addmix_store.dtos.auth.LoginRequestDto;
+import com.web.service.addmix_store.dtos.auth.LoginResponseDto;
+import com.web.service.addmix_store.dtos.auth.RegisterRequestDto;
+import com.web.service.addmix_store.dtos.auth.RegisterResponseDto;
+import com.web.service.addmix_store.dtos.auth.ResetPasswordRequestDto;
+import com.web.service.addmix_store.dtos.auth.VerifyRegisterRequestDto;
 import com.web.service.addmix_store.models.User;
 import com.web.service.addmix_store.models.VerificationToken;
 import com.web.service.addmix_store.repository.VerificationTokenRepository;
@@ -41,7 +41,15 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+// @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(
+    origins = {
+        "http://localhost:3000",
+        "http://addmix-dashboard.s3-website-us-east-1.amazonaws.com",
+        "http://addmix-wep-app.s3-website-us-east-1.amazonaws.com"
+    },
+    allowCredentials = "true"
+)
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -118,7 +126,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest) throws Exception, BadRequestException{
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest) throws BadRequestException{
         // Check if email already exists
         if (userService.existsByEmail(registerRequest.getEmail())) {
             throw new BadRequestException("Email is already registered");
@@ -180,11 +188,11 @@ public class AuthController {
         }
 
         if (!verificationToken.getVerificationCode().equals(verifyRegisterRequestDto.getVerificationCode())) {
-            throw new BadCredentialsException("Invalid code");
+            throw new BadRequestException("Invalid code");
         }
 
         if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new BadCredentialsException("Code expired");
+            throw new BadRequestException("Code expired");
         }
 
         user.setIsActive(true);
@@ -297,7 +305,7 @@ public class AuthController {
 
             // Check if the password matches the confirm password
             if(!resetPasswordRequestDto.getPassword().equals(resetPasswordRequestDto.getConfirmPassword())){
-                throw new BadCredentialsException("invalid password");
+                throw new BadRequestException("invalid password");
             }
 
             // Set the new password
@@ -323,7 +331,7 @@ public class AuthController {
             .header(HttpHeaders.SET_COOKIE, cookie.toString())
             .body(loginResponse);
 
-        }catch (BadCredentialsException e) {
+        }catch (BadRequestException e) {
             Map<String, String> error = new HashMap<>();
             logger.error("resetUserPassword: {}", e.getMessage());
             error.put("message",  e.getMessage());
