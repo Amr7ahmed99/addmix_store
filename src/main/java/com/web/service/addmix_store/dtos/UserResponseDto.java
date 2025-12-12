@@ -15,6 +15,7 @@ public class UserResponseDto {
     private String firstName;
     private String lastName;
     private boolean isActive;
+    private UserAddressDto userAddressDto;
 
     public UserResponseDto(User user) {
         this.id = user.getId();
@@ -23,5 +24,10 @@ public class UserResponseDto {
         this.lastName = user.getLastName();
         this.isActive= user.getIsActive();
         this.mobile= user.getMobileNumber();
+    }
+
+    public UserResponseDto(User user, UserAddressDto userAddressDto) {
+        this(user);
+        this.userAddressDto = userAddressDto;
     }
 }

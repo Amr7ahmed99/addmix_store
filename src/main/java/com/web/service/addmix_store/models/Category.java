@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -38,7 +39,10 @@ import jakarta.persistence.ManyToOne;
 public class Category extends BaseEntity{
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "category_seq")
+    @SequenceGenerator(name = "category_seq", sequenceName = "categories_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @Column(name = "name_en", nullable = false)

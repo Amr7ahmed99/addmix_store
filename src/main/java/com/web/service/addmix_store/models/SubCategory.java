@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -36,7 +37,10 @@ import jakarta.persistence.Index;
 public class SubCategory extends BaseEntity{
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "subcategory_seq")
+    @SequenceGenerator(name = "subcategory_seq", sequenceName = "sub_categories_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @Column(name = "name_en", nullable = false)

@@ -15,6 +15,7 @@ import com.web.service.addmix_store.models.ProductVariant;
 import com.web.service.addmix_store.projections.ProductBasicDataProjection;
 import com.web.service.addmix_store.projections.ProductsListVariantProjection;
 import com.web.service.addmix_store.projections.TopSellerProductsProjection;
+import com.web.service.addmix_store.projections.TopSellerVariantProjection;
 import com.web.service.addmix_store.projections.TrendingProductsProjection;
 import com.web.service.addmix_store.projections.dashboard.BrandProjection;
 import com.web.service.addmix_store.projections.dashboard.CategoryProjection;
@@ -86,7 +87,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             """, nativeQuery = true)
     List<TopSellerProductsProjection> findTopSellerProducts(@Param("lang") String lang, Pageable pageable);
 
-    
     // ============================== Dashboard Queries
     // ==============================
     @Query(value = """
@@ -130,7 +130,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     // ============================== Dashboard Queries
     // ==============================
 
-
     @Query("SELECT COUNT(p) FROM Product p WHERE p.category.id = :categoryId AND p.isDeleted = false")
     Long countByCategoryId(@Param("categoryId") Long categoryId);
 
@@ -160,14 +159,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 p.category_id as categoryId,
                 p.sub_category_id as subCategoryId,
                 p.brand_id as brandId,
-                cat.collection_id as collectionId
+                cat.collection_id as collectionId,
+                cat.name_en as categoryNameEn,
+                sub_cat.name_en as subCategoryNameEn,
+                col.name_en as collectionNameEn
             FROM products p
             LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = true
             LEFT JOIN product_variants pv ON p.id = pv.product_id AND pv.is_active = true
             LEFT JOIN product_prices pp ON pv.id = pp.variant_id
                 AND (pp.end_date IS NULL OR pp.end_date > NOW())
             LEFT JOIN categories cat ON p.category_id = cat.id
-            WHERE p.is_deleted = false 
+            LEFT JOIN sub_categories sub_cat ON p.sub_category_id = sub_cat.id
+            LEFT JOIN collections col ON cat.collection_id = col.id
+
+            WHERE p.is_deleted = false
             --- removed to be displayed on admin dashboard  --- AND p.is_active= true
             AND (:categoryId = 0 OR p.category_id = :categoryId)
             AND (:subCategoryId = 0 OR p.sub_category_id = :subCategoryId)
@@ -182,7 +187,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 OR p.description_ar ILIKE '%' || :search || '%'
             )
             GROUP BY p.id, p.name_en, p.name_ar, pi.image_url, p.is_active,
-                    p.category_id, p.sub_category_id, p.brand_id, cat.collection_id
+                    p.category_id, p.sub_category_id, p.brand_id, cat.collection_id,
+                    cat.name_en, sub_cat.name_en, col.name_en
             ORDER BY p.created_at DESC
             LIMIT :limit OFFSET :offset
             """, nativeQuery = true)
@@ -277,6 +283,45 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 LIMIT 10
             """, nativeQuery = true)
     List<ProductBasicProjection> findTopSellerProductsBasic();
+
+    @Query(value = """
+                SELECT
+                    pv.product_id AS productId,
+                    pv.id AS id,
+                    pv.sku AS sku,
+                    pv.is_active AS isActive,
+
+                    c.hex_code AS colorHexCode,
+                    c.name_en AS colorNameEn,
+                    COALESCE(c.name_ar, c.name_en) AS colorNameAr,
+
+                    s.name_en AS sizeNameEn,
+                    COALESCE(s.name_ar, s.name_en) AS sizeNameAr,
+                    s.size_type AS sizeType,
+
+                    pp.price AS price,
+                    pp.discount_price AS discountPrice,
+                    pp.start_date AS priceStartDate,
+                    pp.end_date AS priceEndDate,
+
+                    i.quantity AS quantity,
+                    i.reserved_quantity AS reservedQuantity,
+                    i.available_quantity AS availableQuantity,
+                    i.damaged_quantity AS damageQuantity,
+                    img.image_url AS imageUrl
+                FROM product_variants pv
+                LEFT JOIN colors c ON pv.color_id = c.id
+                LEFT JOIN sizes s ON pv.size_id = s.id
+                JOIN product_prices pp ON pv.id = pp.variant_id
+                    AND (pp.end_date IS NULL OR pp.end_date > NOW())
+                LEFT JOIN inventory i ON pv.id = i.product_variant_id
+                LEFT JOIN product_images img ON img.product_id = pv.product_id 
+                    AND img.is_primary = true
+                WHERE pv.product_id IN :productIds
+                    AND pv.is_active = true
+                ORDER BY pv.product_id, pv.id
+            """, nativeQuery = true)
+    List<TopSellerVariantProjection> findVariantsForTopSellers(@Param("productIds") List<Long> productIds);
 
     // Get trending products
     @Query(value = """
@@ -374,6 +419,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         Double getDiscountPrice();
 
         Boolean getIsNew();
+
         Boolean getIsTrend();
 
     }
@@ -538,104 +584,102 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             JOIN inventory i ON pv.id = i.product_variant_id
             JOIN product_images pi ON p.id = pi.product_id
             WHERE p.id = :productId
-              AND p.is_deleted = false 
+              AND p.is_deleted = false
             --- removed to be displayed on admin dashboard  --- AND p.is_active= true
             ORDER BY pi.is_primary DESC, pv.id ASC
             """, nativeQuery = true)
     List<ProductDetailsProjection> findProductDetailsById(@Param("productId") Long productId);
 
-
     @Query(value = """
-        SELECT
-            p.id as product_id,
-            p.name_en as product_name_en,
-            p.name_ar as product_name_ar,
-            p.description_en as product_description_en,
-            p.description_ar as product_description_ar,
-            p.is_active as product_is_active,
-            p.is_top_seller as product_is_top_seller,
-            p.is_trend as product_is_trend,
-            p.is_new as product_is_new,
-            p.is_deleted as product_is_deleted,
-            p.created_at as product_created_at,
-            p.updated_at as product_updated_at,
+            SELECT
+                p.id as product_id,
+                p.name_en as product_name_en,
+                p.name_ar as product_name_ar,
+                p.description_en as product_description_en,
+                p.description_ar as product_description_ar,
+                p.is_active as product_is_active,
+                p.is_top_seller as product_is_top_seller,
+                p.is_trend as product_is_trend,
+                p.is_new as product_is_new,
+                p.is_deleted as product_is_deleted,
+                p.created_at as product_created_at,
+                p.updated_at as product_updated_at,
 
-            -- Collection Data
-            col.id as collection_id,
-            col.name_en as collection_name_en,
-            col.name_ar as collection_name_ar,
-            col.image_url as collection_image_url,
+                -- Collection Data
+                col.id as collection_id,
+                col.name_en as collection_name_en,
+                col.name_ar as collection_name_ar,
+                col.image_url as collection_image_url,
 
-            -- Category Data
-            cat.id as category_id,
-            cat.name_en as category_name_en,
-            cat.name_ar as category_name_ar,
-            cat.image_url as category_image_url,
+                -- Category Data
+                cat.id as category_id,
+                cat.name_en as category_name_en,
+                cat.name_ar as category_name_ar,
+                cat.image_url as category_image_url,
 
-            -- SubCategory Data
-            sc.id as sub_category_id,
-            sc.name_en as sub_category_name_en,
-            sc.name_ar as sub_category_name_ar,
+                -- SubCategory Data
+                sc.id as sub_category_id,
+                sc.name_en as sub_category_name_en,
+                sc.name_ar as sub_category_name_ar,
 
-            -- Brand Data
-            b.id as brand_id,
-            b.name_en as brand_name_en,
-            b.name_ar as brand_name_ar,
-            b.image_url as brand_image_url,
+                -- Brand Data
+                b.id as brand_id,
+                b.name_en as brand_name_en,
+                b.name_ar as brand_name_ar,
+                b.image_url as brand_image_url,
 
-            -- Variant Data
-            pv.id as variant_id,
-            pv.sku as variant_sku,
-            pv.is_active as variant_is_active,
+                -- Variant Data
+                pv.id as variant_id,
+                pv.sku as variant_sku,
+                pv.is_active as variant_is_active,
 
-            -- Color Data
-            c.id as color_id,
-            c.name_en as color_name_en,
-            c.name_ar as color_name_ar,
-            c.hex_code as color_hex_code,
+                -- Color Data
+                c.id as color_id,
+                c.name_en as color_name_en,
+                c.name_ar as color_name_ar,
+                c.hex_code as color_hex_code,
 
-            -- Size Data
-            s.id as size_id,
-            s.name_en as size_name_en,
-            s.name_ar as size_name_ar,
-            s.size_type as size_type,
+                -- Size Data
+                s.id as size_id,
+                s.name_en as size_name_en,
+                s.name_ar as size_name_ar,
+                s.size_type as size_type,
 
-            -- Price Data
-            pp.price as price,
-            pp.discount_price as discount_price,
-            pp.start_date as price_start_date,
-            pp.end_date as price_end_date,
+                -- Price Data
+                pp.price as price,
+                pp.discount_price as discount_price,
+                pp.start_date as price_start_date,
+                pp.end_date as price_end_date,
 
-            -- Inventory Data
-            i.quantity as inventory_quantity,
-            i.reserved_quantity as inventory_reserved_quantity,
-            i.available_quantity as inventory_available_quantity,
-            i.low_stock_threshold as inventory_low_stock_threshold,
+                -- Inventory Data
+                i.quantity as inventory_quantity,
+                i.reserved_quantity as inventory_reserved_quantity,
+                i.available_quantity as inventory_available_quantity,
+                i.low_stock_threshold as inventory_low_stock_threshold,
 
-            -- Image Data
-            pi.id as image_id,
-            pi.image_url as image_url,
-            pi.is_primary as image_is_primary
+                -- Image Data
+                pi.id as image_id,
+                pi.image_url as image_url,
+                pi.is_primary as image_is_primary
 
-        FROM products p
-        JOIN categories cat ON p.category_id = cat.id
-        JOIN collections col ON cat.collection_id = col.id
-        JOIN sub_categories sc ON p.sub_category_id = sc.id
-        JOIN brands b ON p.brand_id = b.id
-        LEFT JOIN product_variants pv ON p.id = pv.product_id
-        LEFT JOIN colors c ON pv.color_id = c.id
-        LEFT JOIN sizes s ON pv.size_id = s.id
-        LEFT JOIN product_prices pp ON pv.id = pp.variant_id
-            AND (pp.end_date IS NULL OR pp.end_date > NOW())
-        LEFT JOIN inventory i ON pv.id = i.product_variant_id
-        LEFT JOIN product_images pi ON p.id = pi.product_id
-        WHERE p.id = :productId
-            AND p.is_deleted = false 
-        --- removed to be displayed on admin dashboard  --- AND p.is_active= true
-        ORDER BY pi.is_primary DESC, pv.id ASC
-        """, nativeQuery = true)
+            FROM products p
+            JOIN categories cat ON p.category_id = cat.id
+            JOIN collections col ON cat.collection_id = col.id
+            JOIN sub_categories sc ON p.sub_category_id = sc.id
+            JOIN brands b ON p.brand_id = b.id
+            LEFT JOIN product_variants pv ON p.id = pv.product_id
+            LEFT JOIN colors c ON pv.color_id = c.id
+            LEFT JOIN sizes s ON pv.size_id = s.id
+            LEFT JOIN product_prices pp ON pv.id = pp.variant_id
+                AND (pp.end_date IS NULL OR pp.end_date > NOW())
+            LEFT JOIN inventory i ON pv.id = i.product_variant_id
+            LEFT JOIN product_images pi ON p.id = pi.product_id
+            WHERE p.id = :productId
+                AND p.is_deleted = false
+            --- removed to be displayed on admin dashboard  --- AND p.is_active= true
+            ORDER BY pi.is_primary DESC, pv.id ASC
+            """, nativeQuery = true)
     List<ProductDetailsProjection> findProductDetailsByIdForDashboard(@Param("productId") Long productId);
-
 
     String productsListWithFiltersQuery = """
             FROM products p

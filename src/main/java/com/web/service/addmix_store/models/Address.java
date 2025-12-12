@@ -1,10 +1,7 @@
 package com.web.service.addmix_store.models;
 
-import com.web.service.addmix_store.enums.AddressType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -12,12 +9,14 @@ import jakarta.persistence.Id;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(
@@ -28,14 +27,18 @@ import lombok.NoArgsConstructor;
         @Index(name = "idx_country", columnList = "country")
     }
 )
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Getter
+@Setter
 @Builder
 public class Address extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "address_seq")
+    @SequenceGenerator(name = "address_seq", sequenceName = "addresses_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -52,15 +55,23 @@ public class Address extends BaseEntity {
 
     @NotBlank
     @Column(nullable = false)
-    private String country;
+    private String state;
 
-    @Column(name = "postal_code")
-    private String postalCode;
+    @NotBlank
+    @Column(nullable = false)
+    @Builder.Default
+    private String country= "EGYPT";
+
+    // @Column(name = "postal_code")
+    // private String postalCode;
 
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "address_type", nullable = false)
-    private AddressType addressType; // BILLING or SHIPPING
+    @Column(name = "is_default", nullable = false)
+    private boolean isDefault;
+
+    // @Enumerated(EnumType.STRING)
+    // @Column(name = "address_type", nullable = false)
+    // private AddressType addressType; // BILLING or SHIPPING
 }

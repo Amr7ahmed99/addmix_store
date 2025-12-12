@@ -49,6 +49,10 @@ public class ProductVariantService {
                 throw new RuntimeException("SKU already exists: " + request.getSku());
             }
 
+            if(request.getPrice() <= 0) {
+                throw new IllegalArgumentException("Price must be greater than 0");
+            }
+
             if (productVariantRepository.existsByProductIdAndColorIdAndSizeId(
                     request.getProductId(), request.getColorId(), request.getSizeId())) {
                 throw new RuntimeException("Variant with same color and size already exists for this product");

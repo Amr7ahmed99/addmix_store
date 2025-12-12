@@ -16,12 +16,12 @@ public class EmailService {
     private String emailSender;
     
     @Async
-    public void sendVerificationEmail(String email, String code) {
+    public void sendVerificationEmail(String email, String code, String verificationMessage) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(emailSender);
         message.setTo(email);
         message.setSubject("AddMix Store OTP Code");
-        message.setText("Use this code to verify your account: " + code);
+        message.setText(verificationMessage + ": "+ code);
         mailSender.send(message);
     }
 

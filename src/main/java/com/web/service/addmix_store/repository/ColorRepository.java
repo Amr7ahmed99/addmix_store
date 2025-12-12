@@ -20,9 +20,11 @@ public interface ColorRepository extends JpaRepository<Color, Long> {
             co.name_en,
             co.name_ar
         FROM product_variants pv
-        LEFT JOIN colors co ON co.id= pv.color_id
+        JOIN colors co ON co.id= pv.color_id
         WHERE pv.is_active= true
             AND pv.product_id IN(:productIds)
+            AND pv.color_id IS NOT NULL
+        GROUP BY pv.product_id, co.hex_code, co.name_en, co.name_ar
         ORDER BY pv.product_id DESC
         """, nativeQuery = true)
     List<ProductColorsProjection> findColorsByProductIds(@Param("productIds") List<Long> productIds);

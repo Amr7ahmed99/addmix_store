@@ -11,14 +11,18 @@ import lombok.*;
         @Index(name = "idx_inventory_available", columnList = "available_quantity")
     }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Inventory extends BaseEntity {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "inventory_seq")
+    @SequenceGenerator(name = "inventory_seq", sequenceName = "inventory_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -41,9 +45,9 @@ public class Inventory extends BaseEntity {
     @Builder.Default
     private Integer availableQuantity = 0;
 
-    @Column(name = "low_stock_threshold", columnDefinition = "int default 5")
+    @Column(name = "low_stock_threshold", columnDefinition = "int default 2")
     @Builder.Default
-    private Integer lowStockThreshold = 5;
+    private Integer lowStockThreshold = 2;
 
     @PreUpdate
     @PrePersist

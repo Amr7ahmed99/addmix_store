@@ -18,6 +18,9 @@ public class ProductsListDTO {
     private String imageUrl;
     private Boolean isActive;
     private Integer quantity;
+    private String categoryNameEn;
+    private String subCategoryNameEn;
+    private String collectionNameEn;
 
     public String getStockStatus() {
         if (quantity == null || quantity == 0) {

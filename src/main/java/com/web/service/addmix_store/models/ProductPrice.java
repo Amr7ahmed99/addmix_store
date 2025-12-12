@@ -11,10 +11,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "product_prices",
@@ -22,9 +24,13 @@ import lombok.NoArgsConstructor;
            @Index(name = "idx_price_variant", columnList = "variant_id"),
            @Index(name = "idx_price_date", columnList = "start_date, end_date")
        })
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductPrice extends BaseEntity {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id 
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "product_price_seq")
+    @SequenceGenerator(name = "product_price_seq", sequenceName = "product_prices_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -12,14 +12,18 @@ import lombok.*;
         @Index(name = "idx_size_type", columnList = "sizeType")
     }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Size extends BaseEntity {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "size_seq")
+    @SequenceGenerator(name = "size_seq", sequenceName = "sizes_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @Column(nullable = false)

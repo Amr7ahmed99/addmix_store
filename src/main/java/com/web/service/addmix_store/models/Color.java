@@ -19,7 +19,10 @@ import lombok.*;
 public class Color extends BaseEntity {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "color_seq")
+    @SequenceGenerator(name = "color_seq", sequenceName = "colors_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @Column(nullable = false)
@@ -28,7 +31,7 @@ public class Color extends BaseEntity {
     @Column(nullable = false)
     private String nameAr;
 
-    @Column(name = "hex_code", length = 7)
+    @Column(name = "hex_code", length = 12, nullable = false)
     private String hexCode;
 
     @Column(name = "image_url")

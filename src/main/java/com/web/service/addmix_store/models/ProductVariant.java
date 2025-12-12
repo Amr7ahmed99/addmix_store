@@ -5,19 +5,21 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.Table;
-import jakarta.persistence.Index;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.SequenceGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(
@@ -27,10 +29,14 @@ import lombok.NoArgsConstructor;
         @Index(name = "idx_variants_sku", columnList = "sku", unique = true)
     }
 )
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProductVariant extends BaseEntity {
     
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id 
+    // @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "product_variant_seq")
+    @SequenceGenerator(name = "product_variant_seq", sequenceName = "product_variants_id_seq", allocationSize = 1)
+    @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -39,9 +45,6 @@ public class ProductVariant extends BaseEntity {
 
     @Column(length = 100, unique = true)
     private String sku;
-
-    @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductAttributeValue> attributes; 
 
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductPrice> prices;
