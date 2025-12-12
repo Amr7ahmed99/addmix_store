@@ -75,6 +75,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/products/*").permitAll()
                 .requestMatchers("/api/analytics/**").permitAll()
                 .requestMatchers("/auth/callback").permitAll()
+                .requestMatchers("/api/addresses").permitAll()
                 //TODO: /admin/* Should be removed from here
                 .requestMatchers("/api/collections/admin/**").permitAll()
                 .requestMatchers("/api/categories/admin/**").permitAll()

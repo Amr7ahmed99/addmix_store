@@ -1,9 +1,7 @@
 package com.web.service.addmix_store.dtos.response;
 
 import java.util.List;
-
-import com.web.service.addmix_store.dtos.ColorDTO;
-import com.web.service.addmix_store.dtos.SizeDTO;
+import com.web.service.addmix_store.dtos.dashboard.ProductVariantDetailsDTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,17 +17,20 @@ public class TopSellersProductResponseDTO {
     private String nameEn;
     private String nameAr;
     private String brandName;
-    private String collectionNameUrl;
-    private String categoryNameUrl;
-    private String subCategoryNameUrl;
     private String descriptionEn;
     private String descriptionAr;
     private String imageUrl;
+
     private Double price;
     private Double discountPrice;
-    private List<ColorDTO> colors;
-    private List<SizeDTO> sizes;
+
+    private String collectionNameUrl;
+    private String categoryNameUrl;
+    private String subCategoryNameUrl;
+
     private Boolean isNew;
     private Boolean isTrend;
     private Double savings;
+
+    private List<ProductVariantDetailsDTO> variants;
 }

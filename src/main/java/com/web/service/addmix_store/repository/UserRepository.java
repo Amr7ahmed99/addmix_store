@@ -8,6 +8,7 @@ import com.web.service.addmix_store.models.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+    Optional<User> findByProvider(String provider);
 
     boolean existsByEmail(String email);
     

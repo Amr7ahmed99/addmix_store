@@ -26,5 +26,9 @@ public interface ProductListProjection {
     Long getBrandId();
 
     Long getCollectionId();
+
+    String getCategoryNameEn();
+    String getSubCategoryNameEn();
+    String getCollectionNameEn();
 }
 

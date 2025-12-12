@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
     //     return ResponseEntity.badRequest().body(err);
     // }
 
-    @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class, IllegalStateException.class})
+    @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class, IllegalStateException.class, EmailNotFoundException.class, MobileNotFoundException.class})
     public ResponseEntity<Map<String, Object>> handleBadRequestExceptions(RuntimeException ex) {
         logException(ex, HttpStatus.BAD_REQUEST);
         

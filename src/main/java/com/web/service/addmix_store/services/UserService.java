@@ -7,6 +7,9 @@ import java.util.Optional;
 import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.web.service.addmix_store.Exceptions.EmailNotFoundException;
+import com.web.service.addmix_store.Exceptions.MobileNotFoundException;
 import com.web.service.addmix_store.models.User;
 import com.web.service.addmix_store.repository.UserRepository;
 
@@ -44,11 +47,15 @@ public class UserService {
 
     public boolean existsByMobileNumber(String mobileNumber){
         return userRepository.existsByMobileNumber(mobileNumber);
-    } 
+    }
 
     public Optional<User> findByEmail(String email){
         return userRepository.findByEmail(email);
     } 
+
+    public Optional<User> findByProvider(String provider){
+        return userRepository.findByProvider(provider);
+    }
 
     public User save(User user){
         return userRepository.save(user);
@@ -58,7 +65,7 @@ public class UserService {
         return userRepository.findByMobileNumber(mobile);
     }
 
-    public Map<String, Object> getUserByEmailOrMobile(String identifier) throws BadRequestException{
+    public Map<String, Object> getUserByEmailOrMobile(String identifier){
         
         boolean userLoggedInByEmail= identifier.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
         User user;
@@ -66,10 +73,10 @@ public class UserService {
         // Check if matches email regex, search by email; else search by mobile
         if (userLoggedInByEmail) {
             user = userRepository.findByEmail(identifier)
-                .orElseThrow(() -> new BadRequestException("Invalid email"));
+                .orElseThrow(() -> new EmailNotFoundException("Invalid email or password"));
         } else {
             user = userRepository.findByMobileNumber(identifier)
-                .orElseThrow(() -> new BadRequestException("Invalid mobile number"));
+                .orElseThrow(() -> new MobileNotFoundException("Invalid mobile number or password"));
         }
 
         Map<String, Object> map= new HashMap<>();

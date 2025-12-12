@@ -1,9 +1,8 @@
 package com.web.service.addmix_store.controllers.auth;
 
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-
-import org.apache.coyote.BadRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -33,6 +32,7 @@ import com.web.service.addmix_store.utils.auth.JwtUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.micrometer.common.lang.Nullable;
 
+import java.beans.Transient;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -69,7 +69,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest, @Nullable @RequestParam boolean error)
-        throws Exception, BadRequestException, UsernameNotFoundException{
+        throws Exception, UsernameNotFoundException{
 
         // to handle redirect link from google auth handler ("api/auth/login?error=true")
         if(error){
@@ -102,7 +102,7 @@ public class AuthController {
 
             // Send otp to registred email or mobile
             if(userLoggedInByEmail){
-                emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+                emailService.sendVerificationEmail(user.getEmail(), verificationCode, "Use this code to verify your account");
             }else{
                 whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
             }
@@ -126,15 +126,16 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest) throws BadRequestException{
+    @Transactional
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDto registerRequest){
         // Check if email already exists
         if (userService.existsByEmail(registerRequest.getEmail())) {
-            throw new BadRequestException("Email is already registered");
+            throw new IllegalArgumentException("Email is already registered");
         }
 
         // Check if mobile number already exists
         if (userService.existsByMobileNumber(registerRequest.getMobileNumber())) {
-            throw new BadRequestException("Mobile number is already registered");
+            throw new IllegalArgumentException("Mobile number is already registered");
         }
 
         // Create new user
@@ -162,7 +163,7 @@ public class AuthController {
         UserResponseDto userResponse = new UserResponseDto(savedUser);
 
         // Send otp to registred email
-        emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
+        emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode, "Use this code to verify your account");
         // TODO: send email if the user select send OTP to email, and to mobile if the user select sent to whatsApp
         // if(!registerRequest.getEmail().isEmpty()){
         //     emailService.sendVerificationEmail(savedUser.getEmail(), verificationCode);
@@ -175,7 +176,7 @@ public class AuthController {
     }
 
     @PostMapping("/register/verify")
-    public ResponseEntity<?> verifyEmail(@RequestBody VerifyRegisterRequestDto verifyRegisterRequestDto) throws Exception, BadRequestException{
+    public ResponseEntity<?> verifyEmail(@RequestBody VerifyRegisterRequestDto verifyRegisterRequestDto) throws Exception{
 
         // Check if the user logged in by email or mobile
         Map<String, Object> map= userService.getUserByEmailOrMobile(verifyRegisterRequestDto.getEmailOrMobile());
@@ -184,15 +185,15 @@ public class AuthController {
         VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElse(null);
 
         if(verificationToken == null){
-            throw new BadRequestException("Verification code not found for this identifier " + verifyRegisterRequestDto.getEmailOrMobile());
+            throw new IllegalStateException("Verification code not found for this identifier " + verifyRegisterRequestDto.getEmailOrMobile());
         }
 
         if (!verificationToken.getVerificationCode().equals(verifyRegisterRequestDto.getVerificationCode())) {
-            throw new BadRequestException("Invalid code");
+            throw new IllegalStateException("Invalid code");
         }
 
         if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new BadRequestException("Code expired");
+            throw new IllegalStateException("Code expired");
         }
 
         user.setIsActive(true);
@@ -219,7 +220,7 @@ public class AuthController {
     }
 
     @GetMapping("/register/verify/resend")
-    public ResponseEntity<?> resendVerificationCode(@RequestParam String identifier) throws Exception, BadRequestException{
+    public ResponseEntity<?> resendVerificationCode(@RequestParam String identifier) throws Exception{
 
         // Check if the user logged in by email or mobile
         Map<String, Object> map= userService.getUserByEmailOrMobile(identifier);
@@ -227,7 +228,7 @@ public class AuthController {
         Boolean userLoggedInByEmail= (Boolean) map.get("userLoggedInByEmail");
 
         VerificationToken verificationToken= verificationTokenRepository.findByUser(user)
-            .orElseThrow(()-> new BadRequestException("Verification code not found for this identifier " + identifier+ ", try to register again"));
+            .orElseThrow(()-> new IllegalStateException("Verification code not found for this identifier " + identifier+ ", try to register again"));
        
         Integer maxAttemptsPerTenMinutes= 3;
         long minutesBetween = Math.abs(ChronoUnit.MINUTES.between(verificationToken.getExpiryDate(), LocalDateTime.now()));
@@ -253,7 +254,7 @@ public class AuthController {
 
         // Send otp to registred email or mobile
         if(userLoggedInByEmail){
-            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode, "Use this code to verify your account");
         }else{
             whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
         }
@@ -263,7 +264,7 @@ public class AuthController {
     }
 
     @GetMapping("/forget-password/verify")
-    public ResponseEntity<?> sendOtpForHandlingNewPassword(@RequestParam String identifier) throws Exception, BadRequestException{
+    public ResponseEntity<?> sendOtpForHandlingNewPassword(@RequestParam String identifier) throws Exception{
 
         // Check if the user logged in by email or mobile
         Map<String, Object> map= userService.getUserByEmailOrMobile(identifier);
@@ -285,7 +286,7 @@ public class AuthController {
 
         // Send otp to registred email or mobile
         if(userLoggedInByEmail){
-            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode, "Use this code to verify your account");
         }else{
             whatsAppService.sendOtp(user.getMobileNumber(), verificationCode);
         }
@@ -305,7 +306,7 @@ public class AuthController {
 
             // Check if the password matches the confirm password
             if(!resetPasswordRequestDto.getPassword().equals(resetPasswordRequestDto.getConfirmPassword())){
-                throw new BadRequestException("invalid password");
+                throw new IllegalStateException("invalid password");
             }
 
             // Set the new password
@@ -331,7 +332,7 @@ public class AuthController {
             .header(HttpHeaders.SET_COOKIE, cookie.toString())
             .body(loginResponse);
 
-        }catch (BadRequestException e) {
+        }catch (IllegalStateException e) {
             Map<String, String> error = new HashMap<>();
             logger.error("resetUserPassword: {}", e.getMessage());
             error.put("message",  e.getMessage());
@@ -371,4 +372,71 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
     }
 
+    @PostMapping("/admin/request-access")
+    public ResponseEntity<?> requestAccess() {
+        //find super admin email from db
+        User admin= this.userService.findByProvider("SUPER_ADMIN").orElseThrow(
+            ()-> new IllegalStateException("Super admin not found")
+        );
+
+        // Generate random verification code and 
+        String verificationCode= Helpers.generateVerificationCode();
+
+        // Save user record to verification_token
+        VerificationToken verificationToken= verificationTokenRepository.findByUser(admin).orElse(null);
+        if(verificationToken == null){
+            verificationToken= new VerificationToken();
+            verificationToken.setUser(admin);
+        }
+
+        if(verificationToken.getExpiryDate() != null) {
+            Integer maxAttemptsPerTenMinutes= 3;
+            long minutesBetween = Math.abs(ChronoUnit.MINUTES.between(verificationToken.getExpiryDate().minusHours(6), LocalDateTime.now()));
+
+            // if the minutes between is exceed 10m we consider it first attempts, else we increment the attempts value
+            if(minutesBetween >= 10){
+                verificationToken.setAttempts(1);
+            }else{
+                if(verificationToken.getAttempts() >= maxAttemptsPerTenMinutes){
+                    return ResponseEntity.badRequest().body("لا يمكنك إعادة إرسال طلب إذن دخول الآن، يرجى المحاولة مرة أخرى بعد " + (10 - minutesBetween) + " دقائق");
+                }
+                verificationToken.setAttempts(verificationToken.getAttempts() + 1);
+            }
+        }
+
+        verificationToken.setVerificationCode(verificationCode);
+        verificationToken.setExpiryDate(LocalDateTime.now().plusHours(6));
+        verificationTokenRepository.save(verificationToken);
+
+        this.emailService.sendVerificationEmail(admin.getEmail(), verificationCode, "Use this code to log in to Addmix dashboard");
+        return ResponseEntity.ok("Admin access request received. We will contact you soon.");
+    }
+
+    @PostMapping("/admin/request-access/verify")
+    public ResponseEntity<?> verifyRequestAccessOtp(@RequestBody String otp) throws Exception{
+
+        // Check if the user logged in by email or mobile
+        User user= this.userService.findByProvider("SUPER_ADMIN").orElseThrow(
+            ()-> new IllegalStateException("Super admin not found")
+        );
+
+        VerificationToken verificationToken= verificationTokenRepository.findByUser(user).orElseThrow(
+            ()-> new IllegalStateException("Verification code not found for admin user")
+        );
+
+        if (!verificationToken.getVerificationCode().equals(otp)) {
+            throw new IllegalStateException("Invalid code");
+        }
+
+        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalStateException("Code expired");
+        }
+
+        verificationToken.setVerificationCode(null); // clear code
+        verificationToken.setExpiryDate(null);
+        verificationTokenRepository.save(verificationToken);
+
+        
+        return ResponseEntity.ok(Map.of("message", "OTP verified successfully. You can now log in to the dashboard.", "validated", true));
+    }
 }
